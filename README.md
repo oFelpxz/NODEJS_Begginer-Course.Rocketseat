@@ -33,6 +33,8 @@ server.listen(3333)
   <li><strong>RES:</strong> É o objeto que utilizamos para enviar uma resposta para quem está chamando a API.</li>
 </ul>
 
+---
+
 Criamos um servidor sem utilizar nenhuma biblioteca, porém não vamos nos aprofundar mais nisso porque raramente alguém cria um servidor dessa forma. Vamos agora criar um servidor utilizando um framework.
 
 Utilizar um framework facilita muitas coisas, pois ele já possui uma estrutura de servidor configurada. Ele permite dividir o servidor em diversos endpoints ou rotas diferentes.
@@ -58,3 +60,218 @@ npm install fastify
 Ao fazer o download da API, você verá duas páginas adicionadas ao seu aplicativo:
 - `package-lock.json`: Funciona como um cache e não deve ser alterado manualmente.
 - `node_modules`: Armazena todas as dependências do projeto.
+
+---
+
+## Criando um servidor com Fastify
+
+Já criamos o servidor com HTTP nátivo, e agora vamos ver como fazemos essa criação com o Fastify:
+
+```javascript
+import { fastify } from 'fastify';
+
+const server = fastify()
+
+server.get('/', ()=>{
+  return 'hello World!'
+})
+
+server.listen({
+  port: 3333,
+})
+```
+---
+
+Dentro do protocolo HTTP temos métodos que são basicamente formas da gente diferenciar semanticamente, ou seja de acordo com o significado, as ações da API.
+
+Por exemplo:
+
+<ul>
+  <li><strong>GET:</strong> É utilizado quando eu quero fazer uma operação na minha aplicação onde eu busco algo, geralmente fazemos isso em listagens.</li>
+  <li><strong>POST:</strong> É utilizado para criação, ou seja quando eu quero criar algo para nossa aplicação.</li>
+  <li><strong>PUT:</strong> É utilizado para alteração, ou seja quando queremos alterar um dado que já foi criado.</li>
+  <li><strong>DELETE:</strong> É utilizado para deletar dados.</li>
+</ul>
+
+Temos outros, porem esses são os principais. 
+
+Alguns outros que valem apena serem mencionados: `PATCH`, quando queremos alterar apenas uma informação, por exemplo quando quero alterar um vídeo de público para privado, ao ínves de alterar tudo alteramos só essa parte. Temos diversos outros seria bom pesquisar a respeito.
+
+---
+
+## Criando o CRUD
+
+O projeto que vamos fazer é sobre **Gerenciamento de Vídeos** e vamos criar todo o `CRUD` para esse projeto, primeiramente vamos fazer com dados locais, sem utilizar banco de dados.
+
+---
+
+### Banco de dados em memória
+
+Primeiramente vamos criar o `CRUD` com um banco de dados em memória, basicamente salvando as informações em váriaveis.
+
+**Rotas**
+
+```javascript
+import { DatabaseMemory } from './database-memory.js';
+
+//* Criar Vídeos
+server.post('/videos', ()=>{
+
+});
+
+//* Listar Vídeos
+server.get('/videos', ()=>{
+
+});
+
+//* Editar Vídeos
+server.put('/videos/:id', ()=>{
+
+});
+
+//* Deletar Vídeos
+server.delete('/videos/:id', ()=>{
+
+})
+```
+
+Alterações que adicionei ao servidor, colocamos caminhos rotas para fazer as respectivas atividades, tambem utilizamos um método de passar parametros em rotas, com o `:id`, no caso o : define que vai ser parametro, e o id é o nome do parametro que estamos passando.
+
+```javascript
+import { randomUUID } from "node:crypto" 
+
+export class DatabaseMemory{
+  #videos = new map()
+
+  list(){
+    return this.#videos.values()
+  }
+
+  create(video){
+    const videoId = randomUUID()
+    this.#videos.set(videoId, video)
+  }
+
+  update(id, video){
+    this.#videos.set(id, video)
+  }
+
+  delete(id){
+    this.#videos.delete(id)
+  }
+}
+```
+
+Essse é o banco de dados, em memória, criamos uma classe DatabaseMemory e dentro dela criamos um objeto com suas propriedades privadas, só podemos altera-las dentro da classe pai, depois criamos diversos métodos que sugestivos.
+
+---
+
+Certo depois de terminar a criação e configuração de todos os métodos do `CRUD` que estávamos fazendo o resultado final foi o seguinte:
+
+```javascript
+import { fastify } from 'fastify';
+import { DatabaseMemory } from './database-memory.js';
+
+const server = fastify();
+const database = new DatabaseMemory
+
+//* Criar Vídeos
+server.post('/videos', (request, reply)=>{
+  const { title, description, duration } = request.body
+
+  database.create({
+    title: title,
+    descrption: description,
+    duration: duration,
+  })
+  
+  return reply.status(201).send()
+});
+
+//* Listar Vídeos
+server.get('/videos', (request, reply)=>{
+  const search = request.query.search
+
+  const videos = database.list(search)
+
+  return videos
+});
+
+//* Editar Vídeos
+server.put('/videos/:id', (request, reply)=>{
+  const videoId = request.params.id
+  const { title, description, duration } = request.body
+
+  database.update(videoId, {
+    title,
+    description,
+    duration
+  })
+
+  return reply.status(204).send()
+});
+
+//* Deletar Vídeos
+server.delete('/videos/:id', (request, reply)=>{
+  const videoId = request.params.id
+  database.delete(videoId)
+
+  return reply.status(204).send()
+})
+
+server.listen({
+  port: 3333,
+});
+
+```
+
+Utilizamos conceitos novos aqui e vou apresentear todos eles antes de ir para o banco de dados em memória.
+
+<ul>
+<li><strong> Request Body:</strong>É a parte de uma requisição HTTP, nela temos os dados que o cliente envia para o servidor. Geralmente usamos ela nos métodos POST, PUT, PATCH. Um exemplo de utilidade seria como enviar dados de um formulário pro servidor. </li>
+<li><strong> Route Parameters:</strong>São partes das URL que são variáveis e podem capturar valores dinâmicos. São úteis quando precisamos capturar o ID de algo por exemplo.</li>
+<li><strong> Query Parameters:</strong>São parametros de consulta usados para passar informações adicionais para requisição, basicamente vai filtrar ou ordenar os recursos retornados pela API.</li>
+</ul>
+
+```javascript
+import { randomUUID } from "node:crypto" 
+
+export class DatabaseMemory{
+  #videos = new Map()
+
+  list(search){
+    return Array.from(this.#videos.entries())
+      .map((videoArray)=>{
+        const id = videoArray[0]
+        const data = videoArray[1]
+
+        return{
+          id,
+          ...data,
+        }
+      })
+      .filter(video =>{
+        if(search){
+          return video.title.includes(search)
+        }
+        return true
+      }) 
+  }
+
+  create(video){
+    const videoId = randomUUID()
+    this.#videos.set(videoId, video)
+  }
+
+  update(id, video){
+    this.#videos.set(id, video)
+  }
+
+  delete(id){
+    this.#videos.delete(id)
+  }
+}
+```
+
+O banco de dados, ficou desse jeito nessa etapa, é importante pesquisar o que exatamente está acontecendo no list view.
+
