@@ -105,7 +105,7 @@ O projeto que vamos fazer é sobre **Gerenciamento de Vídeos** e vamos criar to
 
 ---
 
-### Banco de dados em memória
+## Banco de dados em memória
 
 Primeiramente vamos criar o `CRUD` com um banco de dados em memória, basicamente salvando as informações em váriaveis.
 
@@ -275,3 +275,121 @@ export class DatabaseMemory{
 
 O banco de dados, ficou desse jeito nessa etapa, é importante pesquisar o que exatamente está acontecendo no list view.
 
+---
+
+## Banco de dados Postgres
+
+Para fazer a conexão com o Postgres, utilizamos um site chamado [Neon.tech](https://neon.tech/), que é basicamente um Postgres Serverless.
+
+
+Primeiramente, tivemos que importar a biblioteca do Postgres para funcionar a conexão. Em seguida, criamos um arquivo `DB.js`, onde configuramos a conexão do banco de dados com o aplicativo.
+
+Para passar as informações sensíveis, utilizamos um arquivo `.env`, que armazena essas informações de forma segura e permite que sejam acessadas pela aplicação.
+
+**Database Postgres**
+
+riamos a Database Postgres que é bem semelhante à do banco de dados em memória, porém aqui, dentro das funções, temos consultas para o banco de dados.
+
+Também fizemos as funções se tornarem todas assíncronas.
+
+```javascript
+import { randomUUID } from "node:crypto"; 
+import sql from "./db.js";
+
+export class DatabasePostgres {
+  async list(search) {
+    let videos;
+
+    if (search) {
+      videos = await sql`SELECT * FROM videos WHERE title ILIKE ${"%" + search + "%"}`;
+    } else {
+      videos = await sql`SELECT * FROM videos`;
+    }
+
+    return videos;
+  }
+
+  async create(video) {
+    const videoId = randomUUID();
+    const { title, description, duration } = video;
+
+    await sql`INSERT INTO videos (id, title, description, duration) VALUES (${videoId}, ${title}, ${description}, ${duration})`;
+  }
+
+  async update(id, video) {
+    const { title, description, duration } = video;
+
+    await sql`UPDATE videos SET title = ${title}, description = ${description}, duration = ${duration} WHERE id = ${id}`;
+  }
+
+  async delete(id) {
+    await sql`DELETE FROM videos WHERE id = ${id}`;
+  }
+}
+```
+
+As funções tem que ser assíncronas pelo fato que o acesso ao banco de dados envolve operações de entrada e saída, que podem ser demoradas. Essas funções permitem que a aplicação continue respondendo a outras solicitações enquanto espera a resposta do bando de dados.
+
+**Server**
+
+```javascript
+import { fastify } from 'fastify';
+//import { DatabaseMemory } from './database-memory.js';
+import { DatabasePostgres } from './database-postgres.js'
+
+const server = fastify();
+//const database = new DatabaseMemory
+const database = new DatabasePostgres()
+
+//* Criar Vídeos
+server.post('/videos', async (request, reply)=>{
+  const { title, description, duration } = request.body
+
+  await database.create({
+    title: title,
+    description: description,
+    duration: duration,
+  })
+  
+  return reply.status(201).send()
+});
+
+//* Listar Vídeos
+server.get('/videos', async (request, reply)=>{
+  const search = request.query.search
+
+  const videos = await database.list(search)
+
+  return videos
+});
+
+//* Editar Vídeos
+server.put('/videos/:id', async (request, reply)=>{
+  const videoId = request.params.id
+  const { title, description, duration } = request.body
+
+  await database.update(videoId, {
+    title,
+    description,
+    duration
+  })
+
+  return reply.status(204).send()
+});
+
+//* Deletar Vídeos
+server.delete('/videos/:id', async (request, reply)=>{
+  const videoId = request.params.id
+  await database.delete(videoId)
+
+  return reply.status(204).send()
+})
+
+server.listen({
+  port: 3333,
+});
+```
+
+Fizemos pequenas alterações nos métodos da API, agora eles são assíncronos e estão enviando as informações ou pegando de um banco de dados.
+
+# Deploy do Projeto
