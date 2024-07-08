@@ -392,4 +392,28 @@ server.listen({
 
 Fizemos pequenas alterações nos métodos da API, agora eles são assíncronos e estão enviando as informações ou pegando de um banco de dados.
 
+---
+
 # Deploy do Projeto
+
+Por último utilizamos o site https://render.com/, para dar renderizar o nosso projeto e deixar para as pessoas utilizarem e testarem.
+
+Fizemos algumas alterações no `routes.http` e tambem alteramos o `server.js` para ouvir a porta do lugar que demos deploy.
+
+```javascript
+const start = async () => {
+  try {
+    await server.listen({
+      port: process.env.PORT || 3333,
+      host: '0.0.0.0'
+    });
+    console.log(`Server running at http://0.0.0.0:${process.env.PORT || 3333}/`);
+  } catch (err) {
+    server.log.error(err);
+    process.exit(1);
+  }
+};
+
+start();
+```
+---
